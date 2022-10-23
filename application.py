@@ -11,12 +11,14 @@ str_labels = {'Nombre departamento': 'category', 'Nombre municipio': 'category',
               'Nombre del país': 'category', 'Recuperado': 'category', 'Tipo de recuperación': 'category', 
               'Nombre del grupo étnico': 'category'}
 file_name = "./DataSet/Casos_positivos_de_COVID-19_en_Colombia.csv"
-df = pd.read_csv(file_name, low_memory=False, parse_dates=date_labels)
+df = pd.read_csv(file_name, low_memory=False, parse_dates=date_labels,skiprows=[i for i in range(1,5900000)])#Se ommiten columnas para que no se demore en ejecutar
 df = df.astype(str_labels)
 df['Sexo'] = df['Sexo'].replace({'m':'M', 'f':'F'})
 df['Sexo'].unique()
 df['Sexo'] = df['Sexo'].astype('category')
 df['Recuperado'] = df['Recuperado'].replace({'fallecido':'Fallecido'})
+print(df.info())
+print(df.tail())
 pv = pd.pivot_table(df, index=['Nombre departamento'], columns=["Recuperado"], values=['ID de caso'], aggfunc='count', fill_value=0)
 
 trace1 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Activo')], name='Activo')
