@@ -1,7 +1,9 @@
+from unicodedata import name
 import dash
 from dash import dcc
 from dash import html
 import plotly.graph_objs as go
+import plotly.express as px
 import pandas as pd
 from datetime import datetime
 
@@ -18,6 +20,7 @@ df['Sexo'] = df['Sexo'].replace({'m':'M', 'f':'F'})
 df['Sexo'].unique()
 df['Sexo'] = df['Sexo'].astype('category')
 df['Recuperado'] = df['Recuperado'].replace({'fallecido':'Fallecido'})
+df['Nombre departamento'] = df['Nombre departamento'].replace({'Cundinamarca':'CUNDINAMARCA', 'STA MARTA D.E.':'MAGDALENA', 'CARTAGENA':'BOLIVAR', 'BOGOTA':'CUNDINAMARCA', 'BARRANQUILLA':'ATLANTICO'})
 
 mes_options=[]
 m=4
@@ -32,32 +35,49 @@ while(sw):
     mes_options.append(datetime(a, m, 1))
     m+=1
 
-dash_app = dash.Dash()
+external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+
+dash_app = dash.Dash(external_stylesheets=external_stylesheets)
 app = dash_app.server
 
-dash_app.layout = html.Div(children=[
-    html.H1(children='Hello Dash'),
-
-    html.Div(children='''
-        Cantidad de Activos, Recuperados y fallecidos por departamento
-    '''),
-    html.Div(
-        [
-            dcc.Dropdown(
-                id="Fecha",
-                options=[{
+dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"}, 
+    children=[
+        html.Div(
+            html.H1('Casos de Covid 19 en colombia'), className = 'banner'
+            ),
+        html.Div(className="row", children=[
+        html.Div(className="three columns", children=[
+                dcc.Dropdown(
+                    id='Fecha', placeholder="Seleccione una fecha",
+                    options=[{
                     'label': str(i.strftime("%B"))+" "+str(i.year),
                     'value': i
                 } for i in mes_options],
-                ),
-        ],
-        style={'width': '25%',
-               'display': 'inline-block'}),
+                )]
+            )]),
     dcc.Graph(
-        id='grafica-estado',)
+        id='grafica-barras', figure={}),
+        html.Div([
+    html.Div(className="three columns", children=[
+                    dcc.Dropdown(
+                        df['Nombre departamento'].unique(), id='drop-dep', placeholder="Seleccione departamento", clearable=False, value='CUNDINAMARCA'
+                        )
+                    ]
+                ),
+
+        html.Div(className = 'create_container2 five columns', children=[
+                dcc.Graph(
+                id='grafica-pie1', figure={})
+        ]),
+        html.Div(className = 'create_container2 five columns', children=[
+            dcc.Graph(
+            id='grafica-pie2', figure={})
+        ])
+    ], className = 'create_container2 twelve columns')
 ])
 @dash_app.callback(
-    dash.dependencies.Output('grafica-estado', 'figure'),
+    dash.dependencies.Output('grafica-barras', 'figure'),
     [dash.dependencies.Input('Fecha', 'value')])
 def update_graph(Fecha):
     if(not Fecha):        
@@ -76,6 +96,21 @@ def update_graph(Fecha):
         go.Layout(
             title='Estado de los pacientes {}'.format(Fecha[0:7] if Fecha else"Siempre"),
             barmode='stack')
+    }
+
+@dash_app.callback(
+    dash.dependencies.Output('grafica-pie1', component_property='figure'),
+    [dash.dependencies.Input('drop-dep', component_property='value')])
+
+def update_graph_pie(value):
+    df_plot= df[df['Nombre departamento'] == value]
+    pv = pd.pivot_table(df_plot, index=['Recuperado'], columns=["Nombre departamento"], values=['ID de caso'], aggfunc='count', fill_value=0)
+    trace1 = go.Pie(labels =pv.index, values=pv[('ID de caso', value)], name='Depto')
+    return{
+        'data': [trace1],
+        'layout':
+        go.Layout(
+            title='Estado de los pacientes de {} Siempre'.format(value)),
     }
 
 if __name__ == '__main__':
