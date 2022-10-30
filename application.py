@@ -142,9 +142,16 @@ def generate_chart(a):
     dash.dependencies.Input('dropSexo',component_property='value'),)
 def generate_gr(a):
     df_plot=df[df['Sexo']==a]
-    dfa=df_plot[df_plot['Fecha de recuperación']-df_plot['Fecha de diagnóstico']]
-    print(dfa)
-    f = go.Violin(y=dfa,name="Tiempo de recuperación")
+    dfa=df_plot['Fecha de recuperación']-df_plot['Fecha de diagnóstico']
+    n=[]
+    for i  in dfa:
+        try:
+
+            if i:
+                n.append(int(str(i)[:2]))
+        except:
+            pass
+    f = go.Violin(y=n,name="Tiempo de recuperación")
     return{
         'data': [f],
         'layout':
