@@ -1,3 +1,5 @@
+from msilib.schema import Component
+from tkinter.tix import InputOnly
 from unicodedata import name
 import dash
 from dash import dcc
@@ -71,8 +73,14 @@ dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"},
                 id='grafica-pie1', figure={})
         ]),
         html.Div(className = 'create_container2 five columns', children=[
+            dcc.Dropdown(['Recuperado','Fallecido','Activo'], id='dropSex',placeholder="Seleccione el estado",value="Recuperado", clearable=False),
             dcc.Graph(
             id='grafica-pie2', figure={})
+        ]),
+        html.Div(className = 'create_container2 five columns', children=[
+            dcc.Dropdown(df['Sexo'].unique(), id='dropSexo',placeholder="Seleccione el sexo",value="M", clearable=False),
+            dcc.Graph(
+            id='grafica-pie3', figure={})
         ])
     ], className = 'create_container2 twelve columns')
 ])
@@ -86,7 +94,7 @@ def update_graph(Fecha):
         por_a = df[df['Fecha de diagnóstico'].dt.year == int(Fecha[0:4])]
         df_plot=por_a[por_a['Fecha de diagnóstico'].dt.month==int(Fecha[5:7])]
     pv = pd.pivot_table(df_plot, index=['Nombre departamento'], columns=["Recuperado"], values=['ID de caso'], aggfunc='count', fill_value=0)
-
+    
     trace1 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Activo')], name='Activo')
     trace2 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Recuperado')], name='Recuperado')
     trace3 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Fallecido')], name='Fallecido')
@@ -111,6 +119,37 @@ def update_graph_pie(value):
         'layout':
         go.Layout(
             title='Estado de los pacientes de {} Siempre'.format(value)),
+    }
+@dash_app.callback(
+    dash.dependencies.Output('grafica-pie2', component_property="figure"),
+    dash.dependencies.Input('dropSex',component_property='value'), 
+)
+def generate_chart(a):
+    df_plot=df[df['Recuperado']==a]
+    df_m=df_plot[df_plot['Sexo']=='M']
+    df_f=df_plot[df_plot['Sexo']=='F']
+    trace=go.Box(y=df_m['Edad'],name="Hombres", boxmean=True)
+    trace2=go.Box(y=df_f['Edad'],name="Mujeres",boxmean='sd')
+    return{
+        'data': [trace,trace2],
+        'layout':
+        go.Layout(
+            title='Edad de los pacientes {}'.format(a)),
+    }
+
+@dash_app.callback(
+    dash.dependencies.Output('grafica-pie3', component_property="figure"),
+    dash.dependencies.Input('dropSexo',component_property='value'),)
+def generate_gr(a):
+    df_plot=df[df['Sexo']==a]
+    dfa=df_plot[df_plot['Fecha de recuperación']-df_plot['Fecha de diagnóstico']]
+    print(dfa)
+    f = go.Violin(y=dfa,name="Tiempo de recuperación")
+    return{
+        'data': [f],
+        'layout':
+        go.Layout(
+            title='Tiempo de recuperación de los pacientes de sexo {}'.format(a)),
     }
 
 if __name__ == '__main__':
