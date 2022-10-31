@@ -8,6 +8,7 @@ import plotly.graph_objs as go
 import plotly.express as px
 import pandas as pd
 from datetime import datetime
+import pyodbc
 
 date_labels = ['fecha reporte web', 'Fecha de notificación', 'Fecha de inicio de síntomas', 'Fecha de muerte', 
           'Fecha de diagnóstico', 'Fecha de recuperación']
@@ -15,13 +16,21 @@ str_labels = {'Nombre departamento': 'category', 'Nombre municipio': 'category',
               'Tipo de contagio': 'category', 'Ubicación del caso': 'category', 'Estado': 'category', 
               'Nombre del país': 'category', 'Recuperado': 'category', 'Tipo de recuperación': 'category', 
               'Nombre del grupo étnico': 'category'}
-file_name = "./DataSet/Casos_positivos_de_COVID-19_en_Colombia.csv"
-df = pd.read_csv(file_name, low_memory=False, parse_dates=date_labels,skiprows=[i for i in range(1,5900000)])#Se ommiten columnas para que no se demore en ejecutar
+server = 'LAPTOP-7S9B3U0H' 
+database = 'Covid_19' 
+username = 'sa' 
+password = 'abc123'  
+cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+database+';UID='+username+';PWD='+ password)
+cursor = cnxn.cursor()
+# select 26 rows from SQL table to insert in dataframe.
+query = "SELECT top 400000 * FROM [Covid_19].[dbo].[Casos_positivos_de_COVID-19_en_Colombia]"
+df = pd.read_sql(query, cnxn)
 df = df.astype(str_labels)
 df['Sexo'] = df['Sexo'].replace({'m':'M', 'f':'F'})
 df['Sexo'].unique()
 df['Sexo'] = df['Sexo'].astype('category')
 df['Recuperado'] = df['Recuperado'].replace({'fallecido':'Fallecido'})
+df['Recuperado'] = df['Recuperado'].replace("N/A","Activo")
 df['Nombre departamento'] = df['Nombre departamento'].replace({'Cundinamarca':'CUNDINAMARCA', 'STA MARTA D.E.':'MAGDALENA', 'CARTAGENA':'BOLIVAR', 'BOGOTA':'CUNDINAMARCA', 'BARRANQUILLA':'ATLANTICO'})
 
 mes_options=[]
