@@ -1,6 +1,3 @@
-from msilib.schema import Component
-from tkinter.tix import InputOnly
-from unicodedata import name
 import dash
 from dash import dcc
 from dash import html
@@ -9,13 +6,10 @@ import plotly.express as px
 import pandas as pd
 from datetime import datetime
 import pyodbc
+import json
+from urllib.request import urlopen
 
-date_labels = ['fecha reporte web', 'Fecha de notificación', 'Fecha de inicio de síntomas', 'Fecha de muerte', 
-          'Fecha de diagnóstico', 'Fecha de recuperación']
-str_labels = {'Nombre departamento': 'category', 'Nombre municipio': 'category', 'Sexo': 'category', 
-              'Tipo de contagio': 'category', 'Ubicación del caso': 'category', 'Estado': 'category', 
-              'Nombre del país': 'category', 'Recuperado': 'category', 'Tipo de recuperación': 'category', 
-              'Nombre del grupo étnico': 'category'}
+
 server = 'LAPTOP-7S9B3U0H' 
 database = 'Covid_19' 
 username = 'sa' 
@@ -23,22 +17,21 @@ password = 'abc123'
 cnxn = pyodbc.connect('DRIVER={SQL Server};SERVER='+server+';DATABASE='+database+';UID='+username+';PWD='+ password)
 cursor = cnxn.cursor()
 # select 26 rows from SQL table to insert in dataframe.
-query = "SELECT top 400000 * FROM [Covid_19].[dbo].[Casos_positivos_de_COVID-19_en_Colombia]"
+query = "SELECT * FROM [Covid_19].[dbo].[casos_covid1M]"
 df = pd.read_sql(query, cnxn)
-df = df.astype(str_labels)
-df['Sexo'] = df['Sexo'].replace({'m':'M', 'f':'F'})
-df['Sexo'].unique()
-df['Sexo'] = df['Sexo'].astype('category')
-df['Recuperado'] = df['Recuperado'].replace({'fallecido':'Fallecido'})
-df['Recuperado'] = df['Recuperado'].replace("N/A","Activo")
-df['Nombre departamento'] = df['Nombre departamento'].replace({'Cundinamarca':'CUNDINAMARCA', 'STA MARTA D.E.':'MAGDALENA', 'CARTAGENA':'BOLIVAR', 'BOGOTA':'CUNDINAMARCA', 'BARRANQUILLA':'ATLANTICO'})
+
+with urlopen('https://gist.githubusercontent.com/john-guerra/43c7656821069d00dcbc/raw/be6a6e239cd5b5b803c6e7c2ec405b793a9064dd/Colombia.geo.json') as response:
+    counties = json.load(response)
+locs = df['Nombre departamento'].unique()
+for loc in counties['features']:
+    loc['id'] = loc['properties']['NOMBRE_DPT']
 
 mes_options=[]
-m=4
-a=2020
+m=11
+a=2021
 sw=True
 while(sw):
-    if(m==4 and a==2022):
+    if(m==2 and a==2022):
         sw=False
     if(m==13):
         m=1
@@ -57,18 +50,28 @@ dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"},
         html.Div(
             html.H1('Casos de Covid 19 en colombia'), className = 'banner'
             ),
+
         html.Div(className="row", children=[
         html.Div(className="three columns", children=[
                 dcc.Dropdown(
-                    id='Fecha', placeholder="Seleccione una fecha",
+                    id='drop-fecha', placeholder="Seleccione una fecha",
                     options=[{
                     'label': str(i.strftime("%B"))+" "+str(i.year),
                     'value': i
                 } for i in mes_options],
                 )]
             )]),
-    dcc.Graph(
-        id='grafica-barras', figure={}),
+    dcc.Graph(id='grafica-lineas', figure={}),
+
+        html.Div(className="row", children=[
+        html.Div(className="three columns", children=[
+                dcc.Dropdown(
+                    id='drop-recuperado', placeholder="Seleccione una fecha",
+                    options=["Recuperado", "Fallecido"],clearable=False, value='Recuperado'
+                )]
+            )]),
+    dcc.Graph(id='mapa', figure={}),
+
         html.Div([
     html.Div(className="three columns", children=[
                     dcc.Dropdown(
@@ -93,26 +96,51 @@ dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"},
         ])
     ], className = 'create_container2 twelve columns')
 ])
+
+
 @dash_app.callback(
-    dash.dependencies.Output('grafica-barras', 'figure'),
-    [dash.dependencies.Input('Fecha', 'value')])
+    dash.dependencies.Output('grafica-lineas', 'figure'),
+    [dash.dependencies.Input('drop-fecha', 'value')])
 def update_graph(Fecha):
     if(not Fecha):        
         df_plot = df.copy()
     else:
-        por_a = df[df['Fecha de diagnóstico'].dt.year == int(Fecha[0:4])]
-        df_plot=por_a[por_a['Fecha de diagnóstico'].dt.month==int(Fecha[5:7])]
-    pv = pd.pivot_table(df_plot, index=['Nombre departamento'], columns=["Recuperado"], values=['ID de caso'], aggfunc='count', fill_value=0)
-    
-    trace1 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Activo')], name='Activo')
-    trace2 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Recuperado')], name='Recuperado')
-    trace3 = go.Bar(x=pv.index, y=pv[('ID de caso', 'Fallecido')], name='Fallecido')
+        por_a = df[df['fecha reporte web'].dt.year == int(Fecha[0:4])]
+        df_plot=por_a[por_a['fecha reporte web'].dt.month==int(Fecha[5:7])]
+    pv = pd.pivot_table(df_plot, index=['fecha reporte web'], columns=["Recuperado"], values=['ID de caso'], aggfunc='count')
+    trace1 = go.Scatter(x=pv.index, y=pv[('ID de caso', 'Recuperado')], name='Recuperado')
+    trace2 = go.Scatter(x=pv.index, y=pv[('ID de caso', 'Fallecido')], name='Fallecido')
     return {
-        'data': [trace1, trace2, trace3],
+        'data': [trace1, trace2],
         'layout':
         go.Layout(
             title='Estado de los pacientes {}'.format(Fecha[0:7] if Fecha else"Siempre"),
-            barmode='stack')
+            )
+    }
+
+
+@dash_app.callback(
+    dash.dependencies.Output('mapa', 'figure'),
+    [dash.dependencies.Input('drop-recuperado', 'value')])
+def update_graph(value):
+
+    dff=df[df['Recuperado']==value]
+    dff['Nombre departamento'] = dff['Nombre departamento'].replace({'GUAJIRA':'LA GUAJIRA', 'NORTE SANTANDER':'NORTE DE SANTANDER', 'VALLE':'VALLE DEL CAUCA'})
+    group=dff.groupby(["Nombre departamento","Recuperado"])
+    dff=group.size().reset_index(name='Cantidad')
+    print(dff)
+    trace1 = go.Choroplethmapbox(
+                    geojson=counties,
+                    locations=dff['Nombre departamento'],
+                    z=dff['Cantidad'],
+                    colorscale='Viridis',
+                    colorbar_title=value)
+    return {
+        'data': [trace1],
+        'layout':
+        go.Layout(
+            title='Pacientes '+value+'s por departamentos',mapbox_style="carto-positron", mapbox_zoom=4, 
+            mapbox_center = {"lat": 4.570868, "lon": -74.2973328}, height=700)            
     }
 
 @dash_app.callback(
@@ -121,7 +149,9 @@ def update_graph(Fecha):
 
 def update_graph_pie(value):
     df_plot= df[df['Nombre departamento'] == value]
-    pv = pd.pivot_table(df_plot, index=['Recuperado'], columns=["Nombre departamento"], values=['ID de caso'], aggfunc='count', fill_value=0)
+    df_plot['Estado']=df['Estado'].astype('category')
+    df_plot['Estado']=df['Estado'].replace({'leve':'Leve'})
+    pv = pd.pivot_table(df_plot, index=['Estado'], columns=["Nombre departamento"], values=['ID de caso'], aggfunc='count', fill_value=0)
     trace1 = go.Pie(labels =pv.index, values=pv[('ID de caso', value)], name='Depto')
     return{
         'data': [trace1],
@@ -138,7 +168,7 @@ def generate_chart(a):
     df_m=df_plot[df_plot['Sexo']=='M']
     df_f=df_plot[df_plot['Sexo']=='F']
     trace=go.Box(y=df_m['Edad'],name="Hombres", boxmean=True)
-    trace2=go.Box(y=df_f['Edad'],name="Mujeres",boxmean='sd')
+    trace2=go.Box(y=df_f['Edad'],name="Mujeres",boxmean=True)
     return{
         'data': [trace,trace2],
         'layout':
