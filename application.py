@@ -45,10 +45,10 @@ external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css']
 dash_app = dash.Dash(external_stylesheets=external_stylesheets)
 app = dash_app.server
 
-dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"}, 
+dash_app.layout = html.Div(style={'color':'#000','font-family':'Open Sans'}, 
     children=[
         html.Div(
-            html.H1('Casos de Covid 19 en colombia'), className = 'banner'
+            html.H1('Casos de Covid 19 en colombia'), className = 'banner',style={'font-size':'40px','text-align':'center'}
             ),
 
         html.Div(className="row", children=[
@@ -75,7 +75,7 @@ dash_app.layout = html.Div(style={'font-family':"Courier New, monospace"},
         html.Div([
     html.Div(className="three columns", children=[
                     dcc.Dropdown(
-                        df['Nombre departamento'].unique(), id='drop-dep', placeholder="Seleccione departamento", clearable=False, value='CUNDINAMARCA'
+                        df['Nombre departamento'].unique(), id='drop-dep', placeholder="Seleccione departamento", clearable=False, value='CAQUETA'
                         )
                     ]
                 ),
@@ -109,12 +109,13 @@ def update_graph(Fecha):
         df_plot=por_a[por_a['fecha reporte web'].dt.month==int(Fecha[5:7])]
     pv = pd.pivot_table(df_plot, index=['fecha reporte web'], columns=["Recuperado"], values=['ID de caso'], aggfunc='count')
     trace1 = go.Scatter(x=pv.index, y=pv[('ID de caso', 'Recuperado')], name='Recuperado')
-    trace2 = go.Scatter(x=pv.index, y=pv[('ID de caso', 'Fallecido')], name='Fallecido')
+    trace2 = go.Scatter(x=pv.index, y=pv[('ID de caso', 'Fallecido')], name='Fallecido')    
     return {
         'data': [trace1, trace2],
         'layout':
         go.Layout(
             title='Estado de los pacientes {}'.format(Fecha[0:7] if Fecha else"Siempre"),
+            # xaxis_range=[df_plot['fecha reporte web'].min(), df_plot['fecha reporte web'].max()]
             )
     }
 
@@ -128,7 +129,6 @@ def update_graph(value):
     dff['Nombre departamento'] = dff['Nombre departamento'].replace({'GUAJIRA':'LA GUAJIRA', 'NORTE SANTANDER':'NORTE DE SANTANDER', 'VALLE':'VALLE DEL CAUCA'})
     group=dff.groupby(["Nombre departamento","Recuperado"])
     dff=group.size().reset_index(name='Cantidad')
-    print(dff)
     trace1 = go.Choroplethmapbox(
                     geojson=counties,
                     locations=dff['Nombre departamento'],
